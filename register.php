@@ -1,265 +1,213 @@
 <?php
-include 'include/settings.php';
-
-if (!isset($_SESSION)) 
-{ session_start(); 
+    require 'inc/_global/config.php';
+    ob_start();
+    if (!(empty($maintaince))) {
+    die($maintaince);
 }
-
-if (isset($_SESSION['username'])) {
-echo '
-<script language="javascript">
-    window.location.href = "index"
-</script>
-';
+    if ($user -> LoggedIn()) {
+    header('Location: home.php');
 }
+    //User logged in recently?
+    if (!empty($_COOKIE['username'])) {
+    header('Location: relogin.php');
+    exit;
+}
+    if (!empty($_POST['doCreate'])) {
+    $username = $_POST['signup-username'];
+    $email = $_POST['signup-email'];
+    $password = $_POST['signup-password'];
+    $rpassword = $_POST['signup-password-confirm'];
+    if (empty($_POST['g-recaptcha-response']) || empty($username) || empty($email) || empty($password) || empty($rpassword)) {
+        $error = "Please complete all fields";
+    }
+    if (!($user -> captcha($_POST['g-recaptcha-response'], $google_secret))) {
+        $error = "The captcha was incorrect.";
+    }
+    //Check if the username is legit
+    if (!ctype_alnum($username) || strlen($username) < 4 || strlen($username) > 15) {
+        $error = 'Username must be  alphanumberic and 4-15 characters in length';
+    }
+    //Check referral
+    $referral='0';
+    //Check if user is available
+    $SQL = $odb -> prepare("SELECT COUNT(*) FROM `users` WHERE `username` = :username");
+    $SQL -> execute(array(':username' => $username));
+    $countUser = $SQL -> fetchColumn(0);
+    if ($countUser > 0) {
+        $error = 'Already existing user';
+    }
+    //Validate email
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = 'Invalid email address';
+    }
+    //Compare first to second password
+    if ($password != $rpassword) {
+        $error = 'Passwords do not match';
+    }
+    //Check if email already exists
 
-$site = mysqli_query($con, "SELECT * FROM `settings`") or die(mysqli_error($con));
-while($row = mysqli_fetch_array($site)){
-$website = $row['website'];
-$favicon = $row['favicon'];
+
+
+    $SQL = $odb->prepare("SELECT COUNT(*) FROM `users` WHERE `email` = :email");
+    $SQL->execute(array(':email' => $email));
+    $EmailCount = $SQL->fetchColumn(0);
+    if ($EmailCount > 0) {
+        $error = 'This email is already used';
+    }
+    //Make registeration
+    if (empty($error)) {
+        $insertUser = $odb -> prepare("INSERT INTO `users` VALUES(NULL, :username, :password, :email, 0, 0, 0, 0, :referral, 0, 0, 0,0,0)");
+        $insertUser -> execute(array(':username' => $username, ':password' => SHA1(md5($password)), ':email' => $email, ':referral' => $referral));
+        $_SESSION['success'] = "You have successfully created your account.";
+        header('Location: login.php');
+    }
 }
 ?>
-<!DOCTYPE html>
+
+<!doctype html>
 <html lang="en">
-<head>
-	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
 
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<meta name="description" content="<?php echo $website ?>" />
-	<meta name="author" content="" />
+        <title><?php echo $dm->title; ?></title>
 
-	<link rel="icon" href="<?php echo $favicon ?>">
+        <meta name="description" content="<?php echo $dm->description; ?>">
+        <meta name="author" content="<?php echo $dm->author; ?>">
+        <meta name="robots" content="<?php echo $dm->robots; ?>">
 
-	<title><?php echo $website ?> | Register</title>
+        <!-- Open Graph Meta -->
+        <meta property="og:title" content="<?php echo $dm->title; ?>">
+        <meta property="og:site_name" content="<?php echo $dm->name; ?>">
+        <meta property="og:description" content="<?php echo $dm->description; ?>">
+        <meta property="og:type" content="website">
+        <meta property="og:url" content="<?php echo $dm->og_url_site; ?>">
+        <meta property="og:image" content="<?php echo $dm->og_url_image; ?>">
 
-	<link rel="stylesheet" href="assets/js/jquery-ui/css/no-theme/jquery-ui-1.10.3.custom.min.css">
-	<link rel="stylesheet" href="assets/css/font-icons/entypo/css/entypo.css">
-	<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Noto+Sans:400,700,400italic">
-	<link rel="stylesheet" href="assets/css/bootstrap.css">
-	<link rel="stylesheet" href="assets/css/neon-core.css">
-	<link rel="stylesheet" href="assets/css/neon-theme.css">
-	<link rel="stylesheet" href="assets/css/neon-forms.css">
-	<link rel="stylesheet" href="assets/css/custom.css">
+        <!-- Icons -->
+        <!-- The following icons can be replaced with your own, they are used by desktop and mobile browsers -->
+        <link rel="shortcut icon" href="<?php echo $dm->assets_folder; ?>/media/favicons/favicon.png">
+        <link rel="icon" type="image/png" sizes="192x192" href="<?php echo $dm->assets_folder; ?>/media/favicons/favicon-192x192.png">
+        <link rel="apple-touch-icon" sizes="180x180" href="<?php echo $dm->assets_folder; ?>/media/favicons/apple-touch-icon-180x180.png">
+        <!-- END Icons -->
+        <script src='https://www.google.com/recaptcha/api.js'></script>
+        <!-- Stylesheets -->
+        <?php require 'inc/_global/views/head_end.php'; ?>
+        <?php require 'inc/_global/views/page_start.php'; ?>
+<!-- Page Content -->
+<div class="bg-image" style="background-image: url('<?php echo $dm->assets_folder; ?>/media/photos/photo12@2x.jpg');">
+    <div class="row no-gutters justify-content-center bg-black-75">
+        <!-- Main Section -->
+        <div class="hero-static col-md-6 d-flex align-items-center bg-white">
+            <div class="p-3 w-100">
+                <!-- Header -->
+                <div class="mb-3 text-center">
+                    <a class="link-fx text-success font-w700 font-size-h1" href="index.php">
+                        <span class="text-dark">Black</span><span class="text-success">Generator</span>
+                    </a>
+                    <p class="text-uppercase font-w700 font-size-sm text-muted">Creating a new account</p>
+                </div>
+                <!-- END Header -->
 
-	<script src="assets/js/jquery-1.11.3.min.js"></script>
-
-	<!--[if lt IE 9]><script src="assets/js/ie8-responsive-file-warning.js"></script><![endif]-->
-	
-	<!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
-	<!--[if lt IE 9]>
-		<script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
-		<script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
-	<![endif]-->
-
-
-</head>
-<style>
-a.logo2 {
-    font-size: 400%;
-    color: #2e2e2e;
-    text-transform: uppercase;
-}
-
-a.logo2:hover, a.logo2:focus {
-    text-decoration: none;
-    outline: none;
-}
-
-a.logo2 span {
-    color: #FF6C60;
-}
-
-
-</style>
-<body class="page-body login-page login-form-fall">
-
-
-<!-- This is needed when you send requests via Ajax -->
-<script type="text/javascript">
-var baseurl = '';
-</script>
-	
-<div class="login-container">
-	
-	<div class="login-header login-caret">
-		
-		<div class="login-content">
-			
-				<div class="logo2">
-						<center><a href="#" class="logo2"><b><font color="white"><?php echo $website;?></font></b></a><br /></center>
-				</div>
-			
-			<p class="description">Create an account, it takes few moments only!</p>
-			
-			<!-- progress bar indicator -->
-			<div class="login-progressbar-indicator">
-				<h3>43%</h3>
-				<span>logging in...</span>
-			</div>
-		</div>
-		
-	</div>
-	
-	<div class="login-progressbar">
-		<div></div>
-	</div>
-	
-	<div class="login-form">
-		
-		<div class="login-content">
-			
-			<form method="post" role="form" id="form_register">
-	
-				<div class="form-login-error" id="error-inconnue">
-				<h3>Huh...</h3>
-				<p>An <strong>error</strong> occurred, please retry !</p>
-			</div>
-			
-				<div class="form-login-error" id="error-longueur">
-				<h3>Huh...</h3>
-				<p>Your <strong>password</strong> is too short !</p>
-			</div>
-			
-				<div class="form-login-error" id="error-conf">
-				<h3>Huh...</h3>
-				<p>Your <strong>passwords</strong> are not same !</p>
-			</div>
-			
-				<div class="form-login-error" id="error-usertaken">
-				<h3>Huh...</h3>
-				<p>Your <strong>username</strong> is already taken !</p>
-			</div>
-				
-				<div class="form-login-error" id="error-emailtaken">
-				<h3>Huh...</h3>
-				<p>Your <strong>email</strong> is already taken !</p>
-			</div>
-				
-				<div class="form-register-success">
-					<i class="entypo-check"></i>
-					<h3>You have been successfully registered.</h3>
-					<p>You can now log in with your account.</p>
-				</div>
-				
-				<div class="form-steps">
-					
-					<div class="step current" id="step-1">
-										
-						<div class="form-group">
-							<div class="input-group">
-								<div class="input-group-addon">
-									<i class="entypo-mail"></i>
-								</div>
-								
-								<input type="text" class="form-control" name="email" id="email" data-mask="email" placeholder="E-mail" autocomplete="off" />
-							</div>
-						</div>
-						
-						<div class="form-group">
-							<div class="input-group">
-								<div class="input-group-addon">
-									<i class="entypo-user-add"></i>
-								</div>
-								
-								<input type="text" class="form-control" name="username" id="username" placeholder="Username" autocomplete="off" />
-							</div>
-						</div>
-						
-						<div class="form-group">
-							<button type="button" data-step="step-2" class="btn btn-primary btn-block btn-login">
-								<i class="entypo-right-open-mini"></i>
-								Next Step
-							</button>
-						</div>
-						
-						<div class="form-group">
-							Step 1 of 2
-						</div>
-					
-					</div>
-					
-					<div class="step" id="step-2">
-						
-						<div class="form-group">
-							<div class="input-group">
-								<div class="input-group-addon">
-									<i class="entypo-lock"></i>
-								</div>
-								
-								<input type="password" class="form-control" name="password" id="password" placeholder="Choose Password" autocomplete="off" />
-							</div>
-						</div>
-						
-						<div class="form-group">
-							<div class="input-group">
-								<div class="input-group-addon">
-									<i class="entypo-lock"></i>
-								</div>
-								
-								<input type="password" class="form-control" name="confpassword" id="confpassword" placeholder="Confirm Password" autocomplete="off" />
-							</div>
-						</div>
-						<div class="form-group">
-						<small>*By registering, you agree to the <a href="ToS">ToS</a> </small>
-						</div>
-						
-						<div class="form-group">
-							<button type="submit" class="btn btn-success btn-block btn-login">
-								<i class="entypo-right-open-mini"></i>
-								Complete Registration
-							</button>
-						</div>
-						
-						<div class="form-group">
-							Step 2 of 2
-						</div>
-						
-					</div>
-					
-				</div>
-				
-			</form>
-			
-			
-			<div class="login-bottom-links">
-				
-				<a href="login" class="link">
-					<i class="entypo-lock"></i>
-					Return to Login Page
-				</a>
-				
-				<br />
-				
-				<a href="ToS">ToS</a>  - <a href="ToS">Privacy Policy</a>
-				
-			</div>
-			
-		</div>
-		
-	</div>
-	
+                <!-- Sign Up Form -->
+                <!-- jQuery Validation (.js-validation-signup class is initialized in js/pages/op_auth_signup.min.js which was auto compiled from _es6/pages/op_auth_signup.js) -->
+                <!-- For more info and examples you can check out https://github.com/jzaefferer/jquery-validation -->
+                <div class="row no-gutters justify-content-center">
+                    <div class="col-sm-8 col-xl-6">
+                        <form class="js-validation-signup" method="post">
+                          <?php
+                          if (!empty($error)) {
+                              echo '<div class="animated fadeIn">'.error($error).'</div>';
+                          }
+                          ?>
+                            <div class="py-3">
+                                <div class="form-group">
+                                    <input type="text" class="form-control form-control-lg form-control-alt" id="signup-username" name="signup-username" placeholder="Username">
+                                </div>
+                                <div class="form-group">
+                                    <input type="email" class="form-control form-control-lg form-control-alt" id="signup-email" name="signup-email" placeholder="Email">
+                                </div>
+                                <div class="form-group">
+                                    <input type="password" class="form-control form-control-lg form-control-alt" id="signup-password" name="signup-password" placeholder="Password">
+                                </div>
+                                <div class="form-group">
+                                    <input type="password" class="form-control form-control-lg form-control-alt" id="signup-password-confirm" name="signup-password-confirm" placeholder="Confirm Password">
+                                </div>
+                                <div class="form-group">
+                                    <div class="custom-control custom-checkbox custom-control-primary">
+                                        <input type="checkbox" class="custom-control-input" id="signup-terms" name="signup-terms">
+                                        <label class="custom-control-label" for="signup-terms">I have read and accept the rules</label>
+                                    </div>
+                                </div>
+                                <div class="col-xs-12" style="text-align:center">
+                                    <div style='display: inline-block;' class="g-recaptcha" data-sitekey=<?php echo $google_site; ?>></div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <button type="submit" name="doCreate" value="create" class="btn btn-block btn-hero-lg btn-hero-success">
+                                    <i class="fa fa-fw fa-plus mr-1"></i> Register
+                                </button>
+                                <p class="mt-3 mb-0 d-lg-flex justify-content-lg-between">
+                                    <a class="btn btn-sm btn-light d-block d-lg-inline-block mb-1" href="login.php">
+                                        <i class="fa fa-sign-in-alt text-muted mr-1"></i> Login
+                                    </a>
+                                    <a class="btn btn-sm btn-light d-block d-lg-inline-block mb-1" href="#" data-toggle="modal" data-target="#modal-terms">
+                                        <i class="fa fa-book text-muted mr-1"></i> Read the rules
+                                    </a>
+                                </p>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <!-- END Sign Up Form -->
+            </div>
+        </div>
+        <!-- END Main Section -->
+    </div>
 </div>
+<!-- END Page Content -->
 
+<?php require 'inc/_global/views/page_end.php'; ?>
 
-	<!-- Bottom scripts (common) -->
-	<script src="assets/js/gsap/TweenMax.min.js"></script>
-	<script src="assets/js/jquery-ui/js/jquery-ui-1.10.3.minimal.min.js"></script>
-	<script src="assets/js/bootstrap.js"></script>
-	<script src="assets/js/joinable.js"></script>
-	<script src="assets/js/resizeable.js"></script>
-	<script src="assets/js/neon-api.js"></script>
-	<script src="assets/js/jquery.validate.min.js"></script>
-	<script src="assets/js/neon-register.js"></script>
-	<script src="assets/js/jquery.inputmask.bundle.js"></script>
+<!-- Terms Modal -->
+<div class="modal fade" id="modal-terms" tabindex="-1" role="dialog" aria-labelledby="modal-terms" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="block block-themed block-transparent mb-0">
+                <div class="block-header bg-primary-dark">
+                    <h3 class="block-title">Conditions of use</h3>
+                    <div class="block-options">
+                        <button type="button" class="btn-block-option" data-dismiss="modal" aria-label="Close">
+                            <i class="fa fa-fw fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="block-content">
+                  <p>1.) rule number one.</p>
+                  <p>2.) rule number two.</p>
+                  <p>3.) rule number three.</p>
+                  <p>4.) rule number four.</p>
+                  <p>5.) rule number five.</p>
+				  <p>6.) rule number six.</p>
+				  <p>7.) rule number seven.</p>
+				  <p>8.) rule number eight.</p>
 
+                </div>
+                <div class="block-content block-content-full text-right bg-light">
+                    <button type="button" class="btn btn-sm btn-primary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- END Terms Modal -->
 
-	<!-- JavaScripts initializations and stuff -->
-	<script src="assets/js/neon-custom.js"></script>
+<?php require 'inc/_global/views/footer_start.php'; ?>
 
+<!-- Page JS Plugins -->
+<?php $dm->get_js('js/plugins/jquery-validation/jquery.validate.min.js'); ?>
 
-	<!-- Demo Settings -->
-	<script src="assets/js/neon-demo.js"></script>
+<!-- Page JS Code -->
+<?php $dm->get_js('js/pages/op_auth_signup.min.js'); ?>
 
-</body>
-</html>
+<?php require 'inc/_global/views/footer_end.php'; ?>

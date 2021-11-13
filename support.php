@@ -1,255 +1,120 @@
+<?php require 'inc/_global/config.php'; ?>
+<?php require 'inc/backend/config.php'; ?>
 <?php
-
-if (!isset($_SESSION)) { session_start(); }
-
-if (!isset($_SESSION['username'])) {
-echo '
-<script language="javascript">
-    window.location.href = "login.php"
-</script>
-';
-exit();
-}
-
-include 'include/settings.php';
-include'connection.php';
-
-$username = mb_strtolower($_SESSION['username']);
-
-
-$site = mysqli_query($con, "SELECT * FROM `settings`") or die(mysqli_error($con));
-while($row = mysqli_fetch_array($site)){
-$website = $row['website'];
-$favicon = $row['favicon'];
-$emaillll = $row['email'];
-}
-
-if (isset($_POST['message']) & isset($_POST['subject']) & isset($_SESSION['username'])) {
-	$characts  = '1234567890'; 
-	$code_aleatoire      = ''; 
-	for($i=10;$i < 15;$i++)    //10 est le nombre de caractères
-	{ 
-        $code_aleatoire .= md5(substr($characts,rand()%(strlen($characts)),2)); 
-	}
-$ip = mysqli_real_escape_string($con, htmlspecialchars($_SERVER['REMOTE_ADDR']));
-$subject = mysqli_real_escape_string($con, $_POST['subject']);
-$message = mysqli_real_escape_string($con, $_POST['message']);
-$date = date("d-m-Y");
-$datetime = date("Y-m-d H:i:s");
-$hour = date("H:i");
-$sitee = mysqli_query($con, "SELECT * FROM `support` WHERE `idticket` = '$code_aleatoire'") or die(mysqli_error($con));
-if(mysqli_num_rows($sitee) < 1){
-mysqli_query($con, "INSERT INTO `ticket` (`idticket`, `date`, `subject`, `username`, `isread`)
- VALUES 
-('$code_aleatoire', '$date', '$subject', '$username', '1')") or die(mysqli_error($con));
-mysqli_query($con, "INSERT INTO `support` (`idticket`, `from`, `to`, `subject`, `message`, `datetime`, `hour`, `date`) VALUES ('$code_aleatoire', '$username', 'admin', '$subject', '$message', '$datetime', '$hour', '$date')") or die(mysqli_error($con));
-
-
-        $email = "$emaillll";
-        $suujet = "$website : Support";
-        $contenu_message = "Hi Administrator,
-A support ticket has been opened,
-Please visit the website
-Topic = ". $subject ."
-Message = " .$message. "
-Request sent by ". $ip;
-        $adresse_exp = "From: support@ ".$website. ".com";
-		$succes = mail(html_entity_decode($email), $suujet, $contenu_message, $adresse_exp);
-}
-}
+// Page specific configuration
+$dm->l_m_content = '';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<?php require 'inc/_global/views/head_start.php'; ?>
 
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<meta name="description" content="<?php echo $website ?>" />
-	<meta name="author" content="" />
+<!-- Page JS Plugins CSS -->
+<?php $dm->get_css('js/plugins/summernote/summernote-bs4.css'); ?>
 
-	<link rel="icon" href="<?php echo $favicon ?>">
+<?php require 'inc/_global/views/head_end.php'; ?>
+<?php require 'inc/_global/views/page_start.php'; ?>
 
-	<title><?php echo $website ?> | Support</title>
+<!-- Page Content -->
+<div class="row no-gutters flex-md-10-auto">
+    <div class="col-md-12">
+        <div class="content">
+            <!-- Toggle Side Content -->
+            <div class="d-md-none push">
+                <!-- Class Toggle, functionality initialized in Helpers.coreToggleClass() -->
+                <button type="button" class="btn btn-block btn-hero-primary" data-toggle="class-toggle" data-target="#side-content" data-class="d-none">
+                    Ticket menu
+                </button>
+            </div>
+            <!-- END Toggle Side Content -->
 
-	<link rel="stylesheet" href="assets/js/jquery-ui/css/no-theme/jquery-ui-1.10.3.custom.min.css">
-	<link rel="stylesheet" href="assets/css/font-icons/entypo/css/entypo.css">
-	<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Noto+Sans:400,700,400italic">
-	<link rel="stylesheet" href="assets/css/bootstrap.css">
-	<link rel="stylesheet" href="assets/css/neon-core.css">
-	<link rel="stylesheet" href="assets/css/neon-theme.css">
-	<link rel="stylesheet" href="assets/css/neon-forms.css">
-	<link rel="stylesheet" href="assets/css/custom.css">
+            <!-- Side Content -->
+            <div id="side-content" class="d-none d-md-block push">
+                <!-- New Message -->
+                <a href="new_ticket.php">
+                <button type="button" class="btn btn-block btn-hero-success mb-3">
+                    <i class="fa fa-plus mr-1"></i> New ticket
+                </button>
+                </a>
+                <?php
+                  $select = $odb->prepare("SELECT * FROM `tickets` WHERE `username` = :uname ORDER BY `id` DESC");
+                  $select->execute(array(':uname' => $_SESSION['username']));
+                  while($show = $select->fetch(PDO::FETCH_ASSOC))
+                  {
+                    $recupNbMessage = $odb->prepare("SELECT COUNT(ticketid) FROM messages WHERE ticketid = ?");
+                    $recupNbMessage->execute(array($show['id']));
+                    $recupNbMessage = $recupNbMessage->fetchColumn();
+                    $recupNbMessage = $recupNbMessage+1;
+                    if ($show['status'] == "Closed") {
+                      $status = "<span class='badge badge-pill badge-danger'>Resolved</span>";
+                    }
+                    elseif ($show['status'] == "Waiting for user response") {
+                      $status = "<span class='badge badge-pill badge-success'>Waiting for your reply</span>";
+                    }
+                    elseif ($show['status'] == "Waiting for admin response") {
+                      $status = "<span class='badge badge-pill badge-warning'>Being processed</span>";
+                    }
+                    ?>
+                    <a class="list-group-item list-group-item-action" href="ticket.php?id=<?php echo $show['id']; ?>">
+                        <span class="badge badge-pill badge-dark m-1 float-right"><?=$recupNbMessage?></span>
+                        <p class="font-size-h6 font-w700 mb-0">
+                            <?php echo $show['subject'];?> <?php  echo $status; ?>
+                        </p>
+                        <p class="font-size-sm text-muted mb-0">
+                            <strong>Create the <?php echo date('d-m-Y', $show['date']); ?>
+                        </p>
+                    </a>
+                  <?php	}	?>
 
-	<?php 
-	if($_SESSION['skin'] == "blue"){ echo'
-	<link rel="stylesheet" href="assets/css/skins/blue.css">';
-	}elseif($_SESSION['skin'] == "black"){ echo'
-	<link rel="stylesheet" href="assets/css/skins/black.css">';
-    }elseif($_SESSION['skin'] == "white"){ echo'
-	<link rel="stylesheet" href="assets/css/skins/white.css">';
-	}elseif($_SESSION['skin'] == "purple"){ echo'
-	<link rel="stylesheet" href="assets/css/skins/purple.css">';
-	}elseif($_SESSION['skin'] == "cafe"){ echo'
-	<link rel="stylesheet" href="assets/css/skins/cafe.css">';
-	}elseif($_SESSION['skin'] == "red"){ echo'
-	<link rel="stylesheet" href="assets/css/skins/red.css">';
-	}elseif($_SESSION['skin'] == "green"){ echo'
-	<link rel="stylesheet" href="assets/css/skins/green.css">';
-	}elseif($_SESSION['skin'] == "yellow"){ echo'
-	<link rel="stylesheet" href="assets/css/skins/yellow.css">';
-	}elseif($_SESSION['skin'] == "blue"){ echo'
-	<link rel="stylesheet" href="assets/css/skins/blue.css">';
-	}elseif($_SESSION['skin'] == "facebook"){ echo'
-	<link rel="stylesheet" href="assets/css/skins/facebook.css">';
-	}
-													?>
-	
-	
-	
-	<script src="assets/js/jquery-1.11.3.min.js"></script>
-	<script type="text/javascript">
- function MaxLengthTextarea(objettextarea,maxlength){
-  if (objettextarea.value.length > maxlength) {
-    objettextarea.value = objettextarea.value.substring(0, maxlength);
-    alert('Limit characters detected : '+maxlength+' characters max!');
-   }
-}
-</script>
-
-	<!--[if lt IE 9]><script src="assets/js/ie8-responsive-file-warning.js"></script><![endif]-->
-	
-	<!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
-	<!--[if lt IE 9]>
-		<script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
-		<script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
-	<![endif]-->
-
-
-</head>
-<body class="page-body <?php echo $_SESSION['skin']; ?>" data-url="http://neon.dev">
-
-<?php include'include/header.php'; ?>
-		<hr />
-		
-					<ol class="breadcrumb bc-3" >
-								<li>
-						<a href="index"><i class="fa-home"></i>Home</a>
-					</li>
-						<li class="active">
-		
-									<strong>Support</strong>
-							</li>
-							</ol>
-			
-		
-		<br />
-		<div class="wrapper row3">
-  <div class="lrspace">
-    <main class="container clear"> 
-      <!-- main body -->
-      <!-- ################################################################################################ -->
-      <figure class="group">
-			<div class="main-container">
-				<div class="padding-md">
-        <section id="main">
-        
-        
-            <section id="content">
-                <div class="container">
-                    <div class="block-header">
-                        <h2>Support</h2>
-
-                    
+                <!-- <div class="d-flex justify-content-between mb-2">
+                    <div class="dropdown">
+                        <button type="button" class="btn btn-sm btn-link font-w600 dropdown-toggle" id="inbox-msg-sort" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            Sort by
+                        </button>
+                        <div class="dropdown-menu font-size-sm" aria-labelledby="inbox-msg-sort">
+                            <a class="dropdown-item" href="javascript:void(0)">
+                                <i class="fa fa-fw fa-sort-amount-down mr-1"></i> Newest
+                            </a>
+                            <a class="dropdown-item" href="javascript:void(0)">
+                                <i class="fa fa-fw fa-sort-amount-up mr-1"></i> Oldest
+                            </a>
+                        </div>
                     </div>
-                
-
-                    <div class="card">
-                        <div class="card-header">
-                                            <div class="row">
-											<div style="display: flex;">
-                    <div class="col-md-6 well">
-                        <legend>Your Tickets</legend>
-    <div class="tab-content">
-        <div class="tab-pane fade in active" id="home">
-        <div id="menu">
-                    <div class="list-group">
-<?php
-$supportquery = mysqli_query($con, "SELECT * FROM `ticket` WHERE `username` = '$username' ORDER BY `date`");
-while ($row = mysqli_fetch_assoc($supportquery)) {
-echo '
-    <a href="ticket?id='. $row['idticket'] .'"  class="list-group-item" data-target="#message'.$row['id'].'" data-parent="#menu">
-        <span class="name" style="min-width: 120px;display: inline-block;">'.htmlspecialchars($_SESSION["username"]).'</span> <span class="">'.htmlspecialchars($row["subject"]).'</span>
-          <span class="badge">'.$row["date"].'</span> 
-        </span>
-    </a>
-';}
-?>
+                    <div class="dropdown">
+                        <button type="button" class="btn btn-sm btn-link font-w600 dropdown-toggle" id="inbox-msg-filter" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            Filter by
+                        </button>
+                        <div class="dropdown-menu dropdown-menu-right font-size-sm" aria-labelledby="inbox-msg-filter">
+                            <a class="dropdown-item active" href="javascript:void(0)">
+                                <i class="fa fa-fw fa-asterisk mr-1"></i> New
+                            </a>
+                            <a class="dropdown-item" href="javascript:void(0)">
+                                <i class="fa fa-fw fa-archive mr-1"></i> Archived
+                            </a>
+                            <a class="dropdown-item" href="javascript:void(0)">
+                                <i class="fa fa-fw fa-times-circle mr-1"></i> Deleted
+                            </a>
+                        </div>
                     </div>
-        </div>
+                </div> -->
+                <!-- END Sorting/Filtering -->
+
+                <!-- Messages -->
+                <div class="list-group font-size-sm">
+
+                </div>
+                <!-- END Messages -->
+            </div>
+            <!-- END Side Content -->
         </div>
     </div>
-
-                        </div>
-						</div></br>
- <div style="display:flex;">
-            <div class="col-md-6 well">
-                        <legend>Submit Support Ticket</legend>
-            <form method="POST"/>
-            <label>Subject:</label></br>
-            <div class="fg-line">
-            <input type="text" name="subject" class="form-control input-sm" placeholder="Input Subject" maxlength="20" onkeyup="javascript:MaxLengthTextarea(this, 20);" required>
-            </div></br>
-            <label>Message:</label></br>
-
-            <textarea name="message" class="form-control" rows="8" placeholder="Input message" ></textarea></br>
-
-            <button class="btn btn-blue btn-large btn-block ">Submit Ticket</button>
-            </form>
-                    </div>
-					</div>
-                        </div>
-                    </div>
-                
-                    </div>
-            </section>
-        </section>
-				</div><!-- ./padding-md -->
-			</div><!-- /main-container -->
-		</div><!-- /wrapper -->
-      </figure>
-      <!-- ################################################################################################ -->
-      <!-- / main body -->
-	  <?php include 'include/footer.php'; ?>
-	</div>
-      <div class="clear"></div>
-    </main>
-  </div>
 </div>
-		<!-- lets do some work here... -->
-		<!-- Footer -->
-	
-	
+<!-- END Page Content -->
 
+<?php require 'inc/_global/views/page_end.php'; ?>
+<?php require 'inc/_global/views/footer_start.php'; ?>
 
+<!-- Page JS Plugins -->
+<?php $dm->get_js('js/plugins/summernote/summernote-bs4.min.js'); ?>
 
+<!-- Page JS Helpers (Summernote plugin) -->
+<script>jQuery(function(){ Dashmix.helpers('summernote'); });</script>
 
-
-	<!-- Bottom scripts (common) -->
-	<script src="assets/js/gsap/TweenMax.min.js"></script>
-	<script src="assets/js/jquery-ui/js/jquery-ui-1.10.3.minimal.min.js"></script>
-	<script src="assets/js/bootstrap.js"></script>
-	<script src="assets/js/joinable.js"></script>
-	<script src="assets/js/resizeable.js"></script>
-	<script src="assets/js/neon-api.js"></script>
-
-
-	<!-- JavaScripts initializations and stuff -->
-	<script src="assets/js/neon-custom.js"></script>
-
-
-	<!-- Demo Settings -->
-	<script src="assets/js/neon-demo.js"></script>
-
-</body>
-</html>
+<?php require 'inc/_global/views/footer_end.php'; ?>
