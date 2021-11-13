@@ -1,6 +1,4 @@
-# blackgen-account-gen-leak
-BlackGenerator is a template to create your own account generator without knowledge
-(minimum required), easily and quickly! it has many features and will meet your customers' expectations.
+# NightGen Website
 
 Features
 Private generator (paid)
